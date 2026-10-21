@@ -1,19 +1,29 @@
 export interface Salle {
-  id: number;
+  id: number | string;
   nom: string;
   capacite: number;
-  equipements: string[];
+  emplacement: string;
+  equipements: string | string[];
   description?: string;
 }
 
+
+// Status possibles d'une réservation
+export type StatutReservation = 
+  | "En attente"
+  | "Acceptée"
+  | "Refusée"
+  | "Annulée";
+
 export interface Reservation {
-  id: number;
-  salleId: number;
+  id: string | number;
+  salleId: string | number;
   nomUtilisateur: string;
   date: string;
   heureDebut: string;
   heureFin: string;
-  motif?: string;
+  nombresPersonnes: number;
+  statut: StatutReservation;
 }
 
 export interface User {

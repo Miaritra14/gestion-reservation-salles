@@ -1,19 +1,14 @@
 
 import { useState, useEffect } from "react";
+import type { FormEvent } from "react";
 import axios from "axios";
 
+import type { Salle } from "../types";
+import SalleForm from "../components/salles/SalleForm";
+import SalleList from "../components/salles/SalleList";
+
+// Adresse de l'API JSON Server
 const API_URL = "http://localhost:3001/salles";
-
-//Type d'une salle
-interface Salle {
-  id: string | number;
-  nom: string;
-  capacite: number;
-  emplacement: string;
-  equipements: string;
-  description: string;
-}
-
 
 function SallesPage() {
   // Stocker la liste des salles
@@ -25,27 +20,37 @@ function SallesPage() {
   const [emplacement, setEmplacement] = useState("");
   const [equipements, setEquipements] = useState("");
   const [description, setDescription] = useState("");
+
   // Identifier la salle à modifier, ou null pour un nouvel ajout
   const [editingId, setEditingId] = useState<string | number | null>(null);
-  // Stocker un éventuel message d'erreur
+
+  // Stocker les messages d'erreur et de succès
   const [erreur, setErreur] = useState("");
   const [message, setMessage] = useState("");
 
-  //  Charger les salles
+  // Indiquer si les salles sont en cours de chargement
+  const [chargement, setChargement] = useState(true);
+
+  // Charger les salles depuis JSON Server
   async function chargerSalles() {
+    setErreur("");
+
     try {
       const reponse = await axios.get<Salle[]>(API_URL);
       setSalles(reponse.data);
     } catch {
       setErreur("Impossible de charger les salles.");
+    } finally {
+      setChargement(false);
     }
   }
 
+  // Charger les salles au premier affichage de la page
   useEffect(() => {
     chargerSalles();
   }, []);
 
-  // Vider le formulaire
+  // Vider le formulaire et quitter le mode modification
   function viderFormulaire() {
     setNom("");
     setCapacite("");
@@ -55,53 +60,77 @@ function SallesPage() {
     setEditingId(null);
   }
 
-  //  Ajouter ou modifier une salle
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  // Ajouter ou modifier une salle
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setErreur("");
 
+    setErreur("");
+    setMessage("");
+
+    // Vérifier que la capacité est un nombre entier positif
+    const capaciteNombre = Number(capacite);
+
+    if (!Number.isInteger(capaciteNombre) || capaciteNombre < 1) {
+      setErreur("La capacité doit être un nombre entier supérieur à 0.");
+      return;
+    }
+
+    // Préparer les données de la salle
     const salle = {
-      nom,
-      capacite: Number(capacite),
-      emplacement,
-      equipements,
-      description,
+      nom: nom.trim(),
+      capacite: capaciteNombre,
+      emplacement: emplacement.trim(),
+      equipements: equipements.trim(),
+      description: description.trim(),
     };
 
-    setMessage("");
-    setMessage(
-      editingId !== null
-        ? "Salle modifiée avec succès !"
-        : "Salle ajoutée avec succès !"
-    );
+    // Vérifier que les champs obligatoires ne sont pas vides
+    if (!salle.nom || !salle.emplacement) {
+      setErreur("Le nom et l'emplacement sont obligatoires.");
+      return;
+    }
 
     try {
       if (editingId !== null) {
         // Modifier une salle existante
         await axios.put(`${API_URL}/${editingId}`, salle);
+        setMessage("Salle modifiée avec succès !");
       } else {
         // Ajouter une nouvelle salle
         await axios.post(API_URL, salle);
+        setMessage("Salle ajoutée avec succès !");
       }
-      { message && <p style={{ color: "green" }}>{message}</p> }
+
+      // Vider le formulaire après la réussite de l'opération
       viderFormulaire();
+
+      // Actualiser la liste des salles
       await chargerSalles();
     } catch {
       setErreur("Erreur lors de l'enregistrement de la salle.");
     }
   }
 
-  //  Préparer la modification
+  // Préparer le formulaire pour modifier une salle
   function handleEdit(salle: Salle) {
     setEditingId(salle.id);
     setNom(salle.nom);
     setCapacite(String(salle.capacite));
     setEmplacement(salle.emplacement);
-    setEquipements(salle.equipements);
+
+    // Convertir les équipements en texte pour le champ du formulaire
+    setEquipements(
+      Array.isArray(salle.equipements)
+        ? salle.equipements.join(", ")
+        : salle.equipements
+    );
+
     setDescription(salle.description);
+    setErreur("");
+    setMessage("");
   }
 
-  // Supprimer une salle
+  // Supprimer une salle après confirmation
   async function handleDelete(id: string | number) {
     const confirmer = window.confirm(
       "Voulez-vous vraiment supprimer cette salle ?"
@@ -109,10 +138,20 @@ function SallesPage() {
 
     if (!confirmer) return;
 
+    setErreur("");
+    setMessage("");
+
     try {
       await axios.delete(`${API_URL}/${id}`);
+
+      // Quitter le mode modification si la salle supprimée était sélectionnée
+      if (editingId === id) {
+        viderFormulaire();
+      }
+
       setMessage("Salle supprimée avec succès !");
-      setErreur("");
+
+      // Actualiser la liste après la suppression
       await chargerSalles();
     } catch {
       setErreur("Erreur lors de la suppression de la salle.");
@@ -120,159 +159,62 @@ function SallesPage() {
   }
 
   return (
-  <div className="min-h-screen bg-slate-100 p-6">
-    <div className="mx-auto max-w-3xl">
+    <div className="min-h-screen bg-slate-100 p-6">
+      <div className="mx-auto max-w-3xl">
+        {/* Titre principal de la page */}
+        <h2 className="mb-6 text-3xl font-bold text-slate-800">
+          Gestion des salles
+        </h2>
 
-      <h2 className="mb-6 text-3xl font-bold text-slate-800">
-        Gestion des salles
-      </h2>
+        {/* Afficher le formulaire d'ajout ou de modification */}
+        <SalleForm
+          salleEnCours={
+            editingId === null
+              ? null
+              : salles.find((salle) => salle.id === editingId) ?? null
+          }
+          onSubmit={handleSubmit}
+          onAnnuler={viderFormulaire}
+          nom={nom}
+          setNom={setNom}
+          capacite={capacite}
+          setCapacite={setCapacite}
+          emplacement={emplacement}
+          setEmplacement={setEmplacement}
+          equipements={equipements}
+          setEquipements={setEquipements}
+          description={description}
+          setDescription={setDescription}
+        />
 
-      {/* Formulaire */}
-      <div className="mb-8 rounded-xl bg-white p-6 shadow-md">
-        <h3 className="mb-4 text-xl font-semibold text-slate-700">
-          {editingId !== null ? "Modifier une salle" : "Ajouter une salle"}
-        </h3>
+        {/* Afficher les messages de succès et d'erreur */}
+        {erreur && (
+          <p role="alert" className="mb-4 rounded-lg bg-red-100 p-3 text-red-700">
+            {erreur}
+          </p>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {message && (
+          <p role="status" className="mb-4 rounded-lg bg-green-100 p-3 text-green-700">
+            {message}
+          </p>
+        )}
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">Nom de la salle</label>
-            <input
-              value={nom}
-              onChange={(e) => setNom(e.target.value)}
-              required
-              placeholder="Salle de réunion A"
-              className="w-full rounded-lg border border-slate-300 p-3 outline-none focus:border-[#83AEA7] focus:ring-2 focus:ring-[#83AEA7]/30"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">Capacité</label>
-            <input
-              type="number"
-              min="1"
-              value={capacite}
-              onChange={(e) => setCapacite(e.target.value)}
-              required
-              className="w-full rounded-lg border border-slate-300 p-3 outline-none focus:border-[#83AEA7] focus:ring-2 focus:ring-[#83AEA7]/30"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">Emplacement</label>
-            <input
-              value={emplacement}
-              onChange={(e) => setEmplacement(e.target.value)}
-              required
-              placeholder="Ex. : 1er étage"
-              className="w-full rounded-lg border border-slate-300 p-3 outline-none focus:border-[#83AEA7] focus:ring-2 focus:ring-[#83AEA7]/30"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">Équipements</label>
-            <input
-              value={equipements}
-              onChange={(e) => setEquipements(e.target.value)}
-              placeholder="Projecteur, tableau"
-              className="w-full rounded-lg border border-slate-300 p-3 outline-none focus:border-[#83AEA7] focus:ring-2 focus:ring-[#83AEA7]/30"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              placeholder="Description de la salle..."
-              className="w-full rounded-lg border border-slate-300 p-3 outline-none focus:border-[#83AEA7] focus:ring-2 focus:ring-[#83AEA7]/30"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-[#83AEA7] p-3 font-semibold text-white hover:bg-[#6F9992]"
-          >
-            {editingId !== null ? "Enregistrer les modifications" : "Ajouter la salle"}
-          </button>
-
-          {editingId !== null && (
-            <button
-              type="button"
-              onClick={viderFormulaire}
-              className="w-full rounded-lg bg-slate-200 p-3 font-medium text-slate-700 hover:bg-slate-300"
-            >
-              Annuler la modification
-            </button>
-          )}
-        </form>
+        {/* Afficher la liste des salles */}
+        {chargement ? (
+          <p className="rounded-lg bg-white p-4 text-slate-500">
+            Chargement des salles...
+          </p>
+        ) : (
+          <SalleList
+            salles={salles}
+            onModifier={handleEdit}
+            onSupprimer={handleDelete}
+          />
+        )}
       </div>
-
-      {/* Erreur */}
-      {erreur && (
-        <p className="mb-4 rounded-lg bg-red-100 p-3 text-red-700">
-          {erreur}
-        </p>
-      )}
-
-      {/* Liste des salles */}
-      <h3 className="mb-4 text-xl font-semibold text-slate-800">
-        Liste des salles ({salles.length})
-      </h3>
-
-      {salles.length === 0 ? (
-        <p className="rounded-lg bg-white p-4 text-slate-500">
-          Aucune salle enregistrée.
-        </p>
-      ) : (
-        <div className="space-y-4">
-          {salles.map((salle) => (
-            <div
-              key={salle.id}
-              className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
-            >
-              <h4 className="mb-2 text-lg font-bold text-slate-800">
-                {salle.nom}
-              </h4>
-
-              <p className="text-slate-600">
-                Capacité : {salle.capacite} personnes
-              </p>
-              <p className="text-slate-600">
-                Emplacement : {salle.emplacement}
-              </p>
-              <p className="text-slate-600">
-                Équipements : {salle.equipements || "Non précisés"}
-              </p>
-              <p className="mb-4 text-slate-600">
-                Description : {salle.description || "Aucune description"}
-              </p>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleEdit(salle)}
-                  className="rounded-lg bg-[#83AEA7] px-4 py-2 text-white hover:bg-[#6F9992]"
-                >
-                  Modifier
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleDelete(salle.id)}
-                  className="rounded-lg bg-red-500 px-4 py-2 text-white hover:bg-red-600"
-                >
-                  Supprimer
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
     </div>
-  </div>
-);
+  );
 }
+
 export default SallesPage;

@@ -2,24 +2,17 @@
   "salles": [
     {
       "nom": "Salle A",
-      "capacite": 21,
+      "capacite": 25,
       "emplacement": "1ère etage",
-      "equipements": [
-        "Projecteur",
-        "Tableau blanc"
-      ],
+      "equipements": "Projecteur, Tableau blanc",
       "description": "Petite salle de réunion",
       "id": "1"
     },
     {
       "nom": "Salle B",
-      "capacite": 50,
+      "capacite": 30,
       "emplacement": "2ème etage",
-      "equipements": [
-        "Projecteur",
-        "Son",
-        "Climatisation"
-      ],
+      "equipements": "Projecteur, Son, Climatisation",
       "description": "Grande salle de conférence",
       "id": "2"
     },
@@ -78,6 +71,36 @@
       "nombrePersonnes": 20,
       "statut": "Refusée",
       "id": "NK-P7EmUAMI"
+    },
+    {
+      "salleId": "2",
+      "nomUtilisateur": "Administrateur",
+      "date": "2026-10-22",
+      "heureDebut": "09:30",
+      "heureFin": "12:00",
+      "nombrePersonnes": 20,
+      "statut": "En attente",
+      "id": "LwG7mZL1KMY"
+    },
+    {
+      "salleId": "O1u6YRXJw7w",
+      "nomUtilisateur": "Tendry",
+      "date": "2026-10-22",
+      "heureDebut": "09:00",
+      "heureFin": "12:00",
+      "nombrePersonnes": 12,
+      "statut": "En attente",
+      "id": "e37wOxZ_bYk"
+    },
+    {
+      "salleId": "O1u6YRXJw7w",
+      "nomUtilisateur": "Tendry",
+      "date": "2026-10-27",
+      "heureDebut": "08:00",
+      "heureFin": "11:30",
+      "nombrePersonnes": 15,
+      "statut": "En attente",
+      "id": "zWEIgXYD9Bg"
     }
   ],
   "users": [

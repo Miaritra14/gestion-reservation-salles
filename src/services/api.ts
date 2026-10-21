@@ -1,8 +1,10 @@
-import axios from "axios";
-import { Salle, Reservation, User } from "../types";
 
+import axios from "axios";
+import type { Salle, Reservation, User } from "../types";
+
+// Récupère l'adresse de l'API depuis le fichier .env.
 const API = axios.create({
-  baseURL: "http://localhost:3001",
+  baseURL: import.meta.env.VITE_API_URL,
 });
 
 // Récupérer toutes les salles

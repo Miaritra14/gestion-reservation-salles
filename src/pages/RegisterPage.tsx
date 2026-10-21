@@ -13,38 +13,39 @@ function RegisterPage() {
   const navigate = useNavigate();
 
   // Créer un nouveau compte utilisateur
-  const handleRegister = async (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
-    e.preventDefault();
-    setMessage("");
+  
+const handleRegister = async (
+  e: React.FormEvent<HTMLFormElement>
+) => {
+  e.preventDefault();
+  setMessage("");
 
-    try {
-      // Vérifier si l'email existe déjà
-      const reponse = await axios.get(
-        "http://localhost:3001/users",
-        { params: { email } }
-      );
-
-      if (reponse.data.length > 0) {
-        setMessage("Cet email est déjà utilisé.");
-        return;
-      }
-
-      // Enregistrer le nouvel utilisateur
-      await axios.post("http://localhost:3001/users", {
+  try {
+    // Envoyer les informations au backend
+    await axios.post(
+      `${import.meta.env.VITE_API_URL}/register`,
+      {
         nom,
         email,
         password,
-        role: "utilisateur",
-      });
+      }
+    );
 
-      setMessage("Compte créé avec succès !");
-      navigate("/login");
-    } catch {
+    setMessage("Compte créé avec succès !");
+    navigate("/login");
+  } catch (error) {
+    // Afficher un message si l'email existe déjà
+    if (
+      axios.isAxiosError(error) &&
+      error.response?.status === 409
+    ) {
+      setMessage("Cet email est déjà utilisé.");
+    } else {
       setMessage("Erreur lors de la création du compte.");
     }
-  };
+  }
+};
+
 
 return (
   <div

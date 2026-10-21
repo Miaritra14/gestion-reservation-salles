@@ -1,71 +1,60 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
+import type { FormEvent } from "react";
 
-//  Définir la structure d'une salle
-interface Salle {
-  id: string | number;
-  nom: string;
-  capacite: number;
-}
+import type { Salle, Reservation } from "../types";
 
-//  Définir la structure d'une réservation
-interface Reservation {
-  id: string | number;
-  salleId: string | number;
-  nomUtilisateur: string;
-  date: string;
-  heureDebut: string;
-  heureFin: string;
-  nombrePersonnes: number;
-  statut: "En attente" | "Acceptée" | "Refusée" | "Annulée";
-}
+import ReservationForm from "../components/reservations/ReservationForm";
+import ReservationList from "../components/reservations/ReservationList";
+import Message from "../components/common/Message";
 
-//  Adresses de l'API JSON Server
 const API_SALLES = "http://localhost:3001/salles";
 const API_RESERVATIONS = "http://localhost:3001/reservations";
 
 function ReservationsPage() {
-  //  États des données
   const [salles, setSalles] = useState<Salle[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
 
-  //  États du formulaire
   const [salleId, setSalleId] = useState("");
   const [date, setDate] = useState("");
   const [heureDebut, setHeureDebut] = useState("");
   const [heureFin, setHeureFin] = useState("");
   const [nombrePersonnes, setNombrePersonnes] = useState("1");
 
-  //  États des messages et du chargement
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
-  const [chargement, setChargement] = useState(false);
+  const [erreurChargement, setErreurChargement] = useState("");
 
-  //  Récupérer le nom de l'utilisateur connecté
+  const [chargement, setChargement] = useState(false);
+  const [chargementDonnees, setChargementDonnees] = useState(true);
+
   const nomUtilisateur = localStorage.getItem("utilisateur") || "";
 
-  //  Charger les salles et les réservations au démarrage
   useEffect(() => {
     async function chargerDonnees() {
       try {
-        const [reponseSalles, reponseReservations] = await Promise.all([
-          axios.get<Salle[]>(API_SALLES),
-          axios.get<Reservation[]>(API_RESERVATIONS),
-        ]);
+        const [reponseSalles, reponseReservations] =
+          await Promise.all([
+            axios.get<Salle[]>(API_SALLES),
+            axios.get<Reservation[]>(API_RESERVATIONS),
+          ]);
 
         setSalles(reponseSalles.data);
         setReservations(reponseReservations.data);
       } catch {
-        setErreur("Impossible de charger les données. Vérifiez JSON Server.");
+        setErreurChargement(
+          "Impossible de charger les données. Vérifiez que le serveur fonctionne."
+        );
+      } finally {
+        setChargementDonnees(false);
       }
     }
 
     chargerDonnees();
   }, []);
 
-  //  Envoyer une demande de réservation
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     setMessage("");
@@ -76,13 +65,11 @@ function ReservationsPage() {
     setChargement(true);
 
     try {
-      // Vérifier que l'utilisateur est connecté
       if (!nomUtilisateur) {
         setErreur("Veuillez vous connecter avant de réserver.");
         return;
       }
 
-      // Vérifier que la salle existe
       const salleChoisie = salles.find(
         (salle) => String(salle.id) === salleId
       );
@@ -92,56 +79,62 @@ function ReservationsPage() {
         return;
       }
 
-      // Vérifier la date
-      const aujourdHui = new Date();
-      const annee = aujourdHui.getFullYear();
-      const mois = String(aujourdHui.getMonth() + 1).padStart(2, "0");
-      const jour = String(aujourdHui.getDate()).padStart(2, "0");
-      const dateAujourdhui = `${annee}-${mois}-${jour}`;
+      const maintenant = new Date();
+
+      const dateAujourdhui = [
+        maintenant.getFullYear(),
+        String(maintenant.getMonth() + 1).padStart(2, "0"),
+        String(maintenant.getDate()).padStart(2, "0"),
+      ].join("-");
 
       if (!date || date < dateAujourdhui) {
-        setErreur("Veuillez choisir une date valide, aujourd'hui ou plus tard.");
+        setErreur("Choisissez aujourd'hui ou une date future.");
         return;
       }
 
-      // Vérifier les horaires
-      if (!heureDebut || !heureFin || heureFin <= heureDebut) {
-        setErreur("L'heure de fin doit être après l'heure de début.");
+      if (
+        !heureDebut ||
+        !heureFin ||
+        heureFin <= heureDebut
+      ) {
+        setErreur(
+          "L'heure de fin doit être après l'heure de début."
+        );
         return;
       }
 
-      // Vérifier le nombre de personnes
       const nombre = Number(nombrePersonnes);
 
       if (!Number.isInteger(nombre) || nombre < 1) {
-        setErreur("Le nombre de personnes doit être un entier positif.");
+        setErreur("Saisissez un nombre de personnes valide.");
         return;
       }
 
       if (nombre > salleChoisie.capacite) {
         setErreur(
-          `Cette salle peut accueillir au maximum ${salleChoisie.capacite} personnes.`
+          `La capacité maximale de cette salle est de ${salleChoisie.capacite} personnes.`
         );
         return;
       }
 
-      // Récupérer les réservations les plus récentes
-      const reponse = await axios.get<Reservation[]>(API_RESERVATIONS);
-      const reservationsActuelles = reponse.data;
+      // Vérifier les réservations existantes avant l'envoi.
+      const reponse = await axios.get<Reservation[]>(
+        API_RESERVATIONS
+      );
 
+      const reservationsActuelles = reponse.data;
       setReservations(reservationsActuelles);
 
-      // Vérifier si le même créneau est déjà occupé
       const conflit = reservationsActuelles.some((reservation) => {
-        const memeSalle = String(reservation.salleId) === salleId;
+        const memeSalle =
+          String(reservation.salleId) === salleId;
+
         const memeDate = reservation.date === date;
 
-        // Ignorer les réservations refusées ou annulées
-        const nonAnnulee =
+        const bloqueCreneau =
           reservation.statut !== "Refusée" &&
           reservation.statut !== "Annulée";
 
-        // Vérifier si les horaires se chevauchent
         const horairesSeChevauchent =
           heureDebut < reservation.heureFin &&
           heureFin > reservation.heureDebut;
@@ -149,19 +142,18 @@ function ReservationsPage() {
         return (
           memeSalle &&
           memeDate &&
-          nonAnnulee &&
+          bloqueCreneau &&
           horairesSeChevauchent
         );
       });
 
       if (conflit) {
         setErreur(
-          `La salle ${salleChoisie.nom} est déjà demandée ou réservée sur ce créneau. Choisissez un autre horaire.`
+          `La salle ${salleChoisie.nom} est déjà demandée ou réservée sur ce créneau.`
         );
         return;
       }
 
-      // Préparer la nouvelle réservation
       const nouvelleReservation = {
         salleId,
         nomUtilisateur,
@@ -172,223 +164,112 @@ function ReservationsPage() {
         statut: "En attente" as const,
       };
 
-      // Enregistrer dans JSON Server
       const reponseCreation = await axios.post<Reservation>(
         API_RESERVATIONS,
         nouvelleReservation
       );
 
-      // Ajouter la réservation enregistrée à la liste
-      setReservations((anciennesReservations) => [
-        ...anciennesReservations,
+      setReservations((anciennes) => [
+        ...anciennes,
         reponseCreation.data,
       ]);
 
-      // Réinitialiser le formulaire
       setSalleId("");
       setDate("");
       setHeureDebut("");
       setHeureFin("");
       setNombrePersonnes("1");
 
-      setMessage("Votre demande a été envoyée. Statut : En attente.");
+      setMessage("Votre demande a été envoyée.");
     } catch {
       setErreur(
-        "Une erreur est survenue. Vérifiez la connexion à JSON Server et réessayez."
+        "Une erreur est survenue. Vérifiez le serveur et réessayez."
       );
     } finally {
       setChargement(false);
     }
   }
 
-  //  Récupérer uniquement les demandes de l'utilisateur connecté
   const mesReservations = reservations.filter(
-    (reservation) => reservation.nomUtilisateur === nomUtilisateur
+    (reservation) =>
+      reservation.nomUtilisateur === nomUtilisateur
   );
 
-  //  Afficher la page
-return (
-  <div className="min-h-screen bg-slate-100 p-6">
-    <div className="mx-auto max-w-3xl">
+  return (
+    <div className="min-h-screen bg-[#F1F5F4] px-3 py-5 sm:px-5">
+      <div className="mx-auto max-w-4xl space-y-4">
 
-      <h1 className="mb-2 text-3xl font-bold text-slate-800">
-        Réserver une salle
-      </h1>
+        {/* En-tête */}
+        <div className="border-b border-gray-200 pb-3">
+          <h1 className="text-xl font-semibold text-gray-800">
+            Réserver une salle
+          </h1>
 
-      <p className="mb-6 text-slate-500">
-        Remplissez les informations pour envoyer votre demande.
-      </p>
-
-      {/* Formulaire de réservation */}
-      <form
-        onSubmit={handleSubmit}
-        className="flex max-w-xl flex-col gap-3 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
-      >
-        <label htmlFor="utilisateur" className="font-medium text-slate-700">
-          Utilisateur
-        </label>
-        <input
-          id="utilisateur"
-          value={nomUtilisateur}
-          readOnly
-          className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-slate-600"
-        />
-
-        <label htmlFor="salle" className="font-medium text-slate-700">
-          Salle
-        </label>
-        <select
-          id="salle"
-          value={salleId}
-          onChange={(e) => setSalleId(e.target.value)}
-          required
-          className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-[#83AEA7] focus:ring-2 focus:ring-[#83AEA7]/30"
-        >
-          <option value="">Choisir une salle</option>
-          {salles.map((salle) => (
-            <option key={salle.id} value={String(salle.id)}>
-              {salle.nom} — {salle.capacite} personnes
-            </option>
-          ))}
-        </select>
-
-        <label htmlFor="date" className="font-medium text-slate-700">
-          Date
-        </label>
-        <input
-          id="date"
-          type="date"
-          value={date}
-          min={(() => {
-            const maintenant = new Date();
-            const annee = maintenant.getFullYear();
-            const mois = String(maintenant.getMonth() + 1).padStart(2, "0");
-            const jour = String(maintenant.getDate()).padStart(2, "0");
-            return `${annee}-${mois}-${jour}`;
-          })()}
-          onChange={(e) => setDate(e.target.value)}
-          required
-          className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-[#83AEA7] focus:ring-2 focus:ring-[#83AEA7]/30"
-        />
-
-        <label htmlFor="heureDebut" className="font-medium text-slate-700">
-          Heure de début
-        </label>
-        <input
-          id="heureDebut"
-          type="time"
-          value={heureDebut}
-          onChange={(e) => setHeureDebut(e.target.value)}
-          required
-          className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-[#83AEA7] focus:ring-2 focus:ring-[#83AEA7]/30"
-        />
-
-        <label htmlFor="heureFin" className="font-medium text-slate-700">
-          Heure de fin
-        </label>
-        <input
-          id="heureFin"
-          type="time"
-          value={heureFin}
-          onChange={(e) => setHeureFin(e.target.value)}
-          required
-          className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-[#83AEA7] focus:ring-2 focus:ring-[#83AEA7]/30"
-        />
-
-        <label htmlFor="nombrePersonnes" className="font-medium text-slate-700">
-          Nombre de personnes
-        </label>
-        <input
-          id="nombrePersonnes"
-          type="number"
-          min="1"
-          max={salles.find((salle) => String(salle.id) === salleId)?.capacite}
-          value={nombrePersonnes}
-          onChange={(e) => setNombrePersonnes(e.target.value)}
-          required
-          className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-[#83AEA7] focus:ring-2 focus:ring-[#83AEA7]/30"
-        />
-
-        {erreur && (
-          <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
-            {erreur}
+          <p className="mt-1 text-sm text-gray-500">
+            Effectuez une réservation et suivez son statut.
           </p>
-        )}
-
-        {message && (
-          <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-700">
-            {message}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={chargement}
-          className="mt-3 rounded-lg bg-[#83AEA7] px-4 py-3 font-semibold text-white transition hover:bg-[#6F9992] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {chargement ? "Vérification en cours..." : "Envoyer la demande"}
-        </button>
-      </form>
-
-      {/* Liste des réservations */}
-      <h2 className="mb-4 mt-10 text-2xl font-bold text-slate-800">
-        Mes demandes de réservation
-      </h2>
-
-      {mesReservations.length === 0 ? (
-        <p className="rounded-lg bg-white p-5 text-slate-500">
-          Aucune demande pour le moment.
-        </p>
-      ) : (
-        <div className="space-y-4">
-          {mesReservations.map((reservation) => {
-            const salle = salles.find(
-              (s) => String(s.id) === String(reservation.salleId)
-            );
-
-            return (
-              <div
-                key={reservation.id}
-                className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
-              >
-                <h3 className="mb-3 text-lg font-semibold text-slate-800">
-                  {salle?.nom || `Salle ${reservation.salleId}`}
-                </h3>
-
-                <p className="mb-1 text-slate-600">
-                  <strong>Date :</strong> {reservation.date}
-                </p>
-
-                <p className="mb-1 text-slate-600">
-                  <strong>Horaire :</strong> {reservation.heureDebut} - {reservation.heureFin}
-                </p>
-
-                <p className="mb-3 text-slate-600">
-                  <strong>Personnes :</strong> {reservation.nombrePersonnes}
-                </p>
-
-                <p className="text-slate-700">
-                  <strong>Statut :</strong>{" "}
-                  <span
-                    className={`inline-block rounded-full px-3 py-1 text-sm font-medium ${
-                      reservation.statut === "Acceptée"
-                        ? "bg-green-100 text-green-700"
-                        : reservation.statut === "Refusée"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-amber-100 text-amber-700"
-                    }`}
-                  >
-                    {reservation.statut}
-                  </span>
-                </p>
-              </div>
-            );
-          })}
         </div>
-      )}
+
+        {chargementDonnees ? (
+          <p className="rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-500">
+            Chargement des données...
+          </p>
+        ) : (
+          <>
+            <Message texte={erreurChargement} type="error" />
+
+            {!erreurChargement && (
+              <>
+                {/* Formulaire */}
+                <section className="rounded-md border border-gray-200 bg-white p-4 sm:p-5">
+                  <h2 className="mb-4 text-base font-semibold text-gray-800">
+                    Informations de réservation
+                  </h2>
+
+                  <ReservationForm
+                    nomUtilisateur={nomUtilisateur}
+                    salles={salles}
+                    salleId={salleId}
+                    setSalleId={setSalleId}
+                    date={date}
+                    setDate={setDate}
+                    heureDebut={heureDebut}
+                    setHeureDebut={setHeureDebut}
+                    heureFin={heureFin}
+                    setHeureFin={setHeureFin}
+                    nombrePersonnes={nombrePersonnes}
+                    setNombrePersonnes={setNombrePersonnes}
+                    chargement={chargement}
+                    erreur={erreur}
+                    message={message}
+                    onSubmit={handleSubmit}
+                  />
+                </section>
+
+                {/* Réservations personnelles */}
+                <section className="rounded-md border border-gray-200 bg-white p-4 sm:p-5">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
+                    <h2 className="text-base font-semibold text-gray-800">
+                      Mes réservations
+                    </h2>
+
+                    <span className="rounded bg-[#E8F0EE] px-2 py-1 text-xs font-medium text-[#527D75]">
+                      {mesReservations.length} réservation(s)
+                    </span>
+                  </div>
+
+                  <ReservationList
+                    reservations={mesReservations}
+                    salles={salles}
+                  />
+                </section>
+              </>
+            )}
+          </>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
 }
 
 export default ReservationsPage;
