@@ -1,0 +1,121 @@
+{
+  "salles": [
+    {
+      "nom": "Salle A",
+      "capacite": 21,
+      "emplacement": "1ère etage",
+      "equipements": [
+        "Projecteur",
+        "Tableau blanc"
+      ],
+      "description": "Petite salle de réunion",
+      "id": "1"
+    },
+    {
+      "nom": "Salle B",
+      "capacite": 50,
+      "emplacement": "2ème etage",
+      "equipements": [
+        "Projecteur",
+        "Son",
+        "Climatisation"
+      ],
+      "description": "Grande salle de conférence",
+      "id": "2"
+    },
+    {
+      "nom": "Salle de reunion C",
+      "capacite": 20,
+      "emplacement": "3ème étage",
+      "equipements": "Projecteur,tableau",
+      "description": "salle de réunion",
+      "id": "O1u6YRXJw7w"
+    }
+  ],
+  "reservations": [
+    {
+      "id": "1",
+      "salleId": 1,
+      "nomUtilisateur": "tendry",
+      "date": "2026-10-06",
+      "heureDebut": "09:00",
+      "heureFin": "10:00"
+    },
+    {
+      "id": "2",
+      "salleId": 2,
+      "nomUtilisateur": "Jean",
+      "date": "2026-10-20",
+      "heureDebut": "14:00",
+      "heureFin": "15:00"
+    },
+    {
+      "salleId": "1",
+      "nomUtilisateur": "Administrateur",
+      "date": "2026-10-20",
+      "heureDebut": "08:00",
+      "heureFin": "17:00",
+      "nombrePersonnes": 2,
+      "statut": "Acceptée",
+      "id": "LdHCCNGknaU"
+    },
+    {
+      "salleId": "1",
+      "nomUtilisateur": "Tendry",
+      "date": "2026-10-23",
+      "heureDebut": "08:00",
+      "heureFin": "11:04",
+      "nombrePersonnes": 18,
+      "statut": "Acceptée",
+      "id": "5gLmEamOfmg"
+    },
+    {
+      "salleId": "1",
+      "nomUtilisateur": "Tendry",
+      "date": "2026-10-21",
+      "heureDebut": "08:00",
+      "heureFin": "10:00",
+      "nombrePersonnes": 20,
+      "statut": "Refusée",
+      "id": "NK-P7EmUAMI"
+    }
+  ],
+  "users": [
+    {
+      "id": "1",
+      "email": "admin@gmail.com",
+      "password": "1234",
+      "nom": "Administrateur",
+      "role": "admin"
+    },
+    {
+      "id": "2",
+      "email": "tendry@gmail.com",
+      "password": "1234",
+      "nom": "Tendry",
+      "role": "utilisateur"
+    },
+    {
+      "id": "3",
+      "nom": "Responsable Salle",
+      "email": "responsable@gmail.com",
+      "password": "1234",
+      "role": "responsable"
+    },
+    {
+      "nom": "tendry",
+      "email": "tendry1@gmail.com",
+      "password": "1234",
+      "role": "utilisateur",
+      "id": "XxSO8i-8IQQ"
+    },
+    {
+      "nom": "tsiaro",
+      "email": "tsiaro@gmail.com",
+      "password": "1234",
+      "role": "utilisateur",
+      "id": "BtaPvNc-Ttk"
+    }
+  ],
+  "$schema": "./node_modules/json-server/schema.json"
+}
