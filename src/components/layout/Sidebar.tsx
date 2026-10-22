@@ -63,8 +63,8 @@ function Sidebar({ utilisateur, role, onLogout }: SidebarProps) {
               className={({ isActive }) =>
                 `rounded-lg px-4 py-3 transition ${
                   isActive
-                    ? "bg-white/20 font-bold text-white"
-                    : "text-white hover:bg-[#CCCCFF]/20"
+                    ? "bg-white/20 font-bold text-black"
+                    : "text-white hover:bg-[#83AEA7]/20"
                 }`
               }
             >

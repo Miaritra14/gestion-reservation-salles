@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import type { FormEvent } from "react";
+import { reservationSchema } from "../schemas/reservationSchema";
 
 import type { Salle, Reservation } from "../types";
 
@@ -16,21 +17,25 @@ function ReservationsPage() {
   const [salles, setSalles] = useState<Salle[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
 
+  // Valeurs saisies dans le formulaire
   const [salleId, setSalleId] = useState("");
   const [date, setDate] = useState("");
   const [heureDebut, setHeureDebut] = useState("");
   const [heureFin, setHeureFin] = useState("");
   const [nombrePersonnes, setNombrePersonnes] = useState("1");
 
+  // Messages affichés à l'utilisateur
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
   const [erreurChargement, setErreurChargement] = useState("");
 
+  // États pour gérer les chargements
   const [chargement, setChargement] = useState(false);
   const [chargementDonnees, setChargementDonnees] = useState(true);
 
   const nomUtilisateur = localStorage.getItem("utilisateur") || "";
 
+  // Charger les salles et les réservations au démarrage
   useEffect(() => {
     async function chargerDonnees() {
       try {
@@ -42,11 +47,15 @@ function ReservationsPage() {
 
         setSalles(reponseSalles.data);
         setReservations(reponseReservations.data);
-      } catch {
+      } catch (error) {
+        // Afficher un message si le serveur ne répond pas
+        console.error("Erreur de chargement :", error);
+
         setErreurChargement(
           "Impossible de charger les données. Vérifiez que le serveur fonctionne."
         );
       } finally {
+        // Arrêter le chargement, même en cas d'erreur
         setChargementDonnees(false);
       }
     }
@@ -60,25 +69,51 @@ function ReservationsPage() {
     setMessage("");
     setErreur("");
 
+    // Éviter plusieurs envois en même temps
     if (chargement) return;
 
     setChargement(true);
 
     try {
+      // Vérifier que l'utilisateur est connecté
       if (!nomUtilisateur) {
         setErreur("Veuillez vous connecter avant de réserver.");
         return;
       }
 
-      const salleChoisie = salles.find(
-        (salle) => String(salle.id) === salleId
-      );
+      // Zod vérifie les champs et les horaires du formulaire
+      const resultat = reservationSchema.safeParse({
+        salleId,
+        date,
+        heureDebut,
+        heureFin,
+        nombrePersonnes: Number(nombrePersonnes),
+      });
 
-      if (!salleChoisie) {
-        setErreur("Veuillez choisir une salle.");
+      // Si les données sont invalides, afficher la première erreur
+      if (!resultat.success) {
+        setErreur(
+          resultat.error.issues[0]?.message ??
+            "Veuillez vérifier les champs du formulaire."
+        );
         return;
       }
 
+      // Récupérer les données validées par Zod
+      const donneesValidees = resultat.data;
+      const nombre = donneesValidees.nombrePersonnes;
+
+      // Vérifier que la salle choisie existe
+      const salleChoisie = salles.find(
+        (salle) => String(salle.id) === donneesValidees.salleId
+      );
+
+      if (!salleChoisie) {
+        setErreur("Veuillez choisir une salle valide.");
+        return;
+      }
+
+      // Construire la date d'aujourd'hui au format AAAA-MM-JJ
       const maintenant = new Date();
 
       const dateAujourdhui = [
@@ -87,29 +122,13 @@ function ReservationsPage() {
         String(maintenant.getDate()).padStart(2, "0"),
       ].join("-");
 
-      if (!date || date < dateAujourdhui) {
+      // Interdire les réservations dans le passé
+      if (donneesValidees.date < dateAujourdhui) {
         setErreur("Choisissez aujourd'hui ou une date future.");
         return;
       }
 
-      if (
-        !heureDebut ||
-        !heureFin ||
-        heureFin <= heureDebut
-      ) {
-        setErreur(
-          "L'heure de fin doit être après l'heure de début."
-        );
-        return;
-      }
-
-      const nombre = Number(nombrePersonnes);
-
-      if (!Number.isInteger(nombre) || nombre < 1) {
-        setErreur("Saisissez un nombre de personnes valide.");
-        return;
-      }
-
+      // Vérifier la capacité de la salle
       if (nombre > salleChoisie.capacite) {
         setErreur(
           `La capacité maximale de cette salle est de ${salleChoisie.capacite} personnes.`
@@ -117,7 +136,7 @@ function ReservationsPage() {
         return;
       }
 
-      // Vérifier les réservations existantes avant l'envoi.
+      // Recharger les réservations pour vérifier les conflits récents
       const reponse = await axios.get<Reservation[]>(
         API_RESERVATIONS
       );
@@ -125,19 +144,20 @@ function ReservationsPage() {
       const reservationsActuelles = reponse.data;
       setReservations(reservationsActuelles);
 
+      // Vérifier si une réservation bloque déjà ce créneau
       const conflit = reservationsActuelles.some((reservation) => {
         const memeSalle =
-          String(reservation.salleId) === salleId;
+          String(reservation.salleId) === donneesValidees.salleId;
 
-        const memeDate = reservation.date === date;
+        const memeDate = reservation.date === donneesValidees.date;
 
         const bloqueCreneau =
           reservation.statut !== "Refusée" &&
           reservation.statut !== "Annulée";
 
         const horairesSeChevauchent =
-          heureDebut < reservation.heureFin &&
-          heureFin > reservation.heureDebut;
+          donneesValidees.heureDebut < reservation.heureFin &&
+          donneesValidees.heureFin > reservation.heureDebut;
 
         return (
           memeSalle &&
@@ -154,26 +174,30 @@ function ReservationsPage() {
         return;
       }
 
+      // Préparer la réservation à envoyer au serveur
       const nouvelleReservation = {
-        salleId,
+        salleId: donneesValidees.salleId,
         nomUtilisateur,
-        date,
-        heureDebut,
-        heureFin,
+        date: donneesValidees.date,
+        heureDebut: donneesValidees.heureDebut,
+        heureFin: donneesValidees.heureFin,
         nombrePersonnes: nombre,
         statut: "En attente" as const,
       };
 
+      // Enregistrer la réservation dans JSON Server
       const reponseCreation = await axios.post<Reservation>(
         API_RESERVATIONS,
         nouvelleReservation
       );
 
+      // Ajouter la nouvelle réservation à la liste affichée
       setReservations((anciennes) => [
         ...anciennes,
         reponseCreation.data,
       ]);
 
+      // Vider le formulaire après l'enregistrement
       setSalleId("");
       setDate("");
       setHeureDebut("");
@@ -181,15 +205,20 @@ function ReservationsPage() {
       setNombrePersonnes("1");
 
       setMessage("Votre demande a été envoyée.");
-    } catch {
+    } catch (error) {
+      // Gérer les erreurs de communication avec le serveur
+      console.error("Erreur lors de la réservation :", error);
+
       setErreur(
         "Une erreur est survenue. Vérifiez le serveur et réessayez."
       );
     } finally {
+      // Arrêter le chargement, même si une erreur survient
       setChargement(false);
     }
   }
 
+  // Afficher uniquement les réservations de l'utilisateur connecté
   const mesReservations = reservations.filter(
     (reservation) =>
       reservation.nomUtilisateur === nomUtilisateur
@@ -198,8 +227,7 @@ function ReservationsPage() {
   return (
     <div className="min-h-screen bg-[#F1F5F4] px-3 py-5 sm:px-5">
       <div className="mx-auto max-w-4xl space-y-4">
-
-        {/* En-tête */}
+        {/* En-tête de la page */}
         <div className="border-b border-gray-200 pb-3">
           <h1 className="text-xl font-semibold text-gray-800">
             Réserver une salle
@@ -216,11 +244,12 @@ function ReservationsPage() {
           </p>
         ) : (
           <>
+            {/* Afficher une erreur si le chargement échoue */}
             <Message texte={erreurChargement} type="error" />
 
             {!erreurChargement && (
               <>
-                {/* Formulaire */}
+                {/* Formulaire de réservation */}
                 <section className="rounded-md border border-gray-200 bg-white p-4 sm:p-5">
                   <h2 className="mb-4 text-base font-semibold text-gray-800">
                     Informations de réservation
@@ -246,7 +275,7 @@ function ReservationsPage() {
                   />
                 </section>
 
-                {/* Réservations personnelles */}
+                {/* Liste des réservations personnelles */}
                 <section className="rounded-md border border-gray-200 bg-white p-4 sm:p-5">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
                     <h2 className="text-base font-semibold text-gray-800">

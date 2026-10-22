@@ -2,7 +2,7 @@
 import type { Reservation, Salle } from "../../types";
 import CalendarDay from "./CalendarDay";
 
-/** Affiche la grille du calendrier avec les jours, heures et réservations par salle */
+// Informations nécessaires pour afficher le calendrier
 interface CalendarGridProps {
   jours: Date[];
   reservations: Reservation[];
@@ -18,75 +18,95 @@ function CalendarGrid({
   heures,
   hauteurHeure,
 }: CalendarGridProps) {
+  // Date d'aujourd'hui
+  const aujourdhui = new Date().toDateString();
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-      <div className="min-w-[900px]">
-        {/* Première ligne : les jours de la semaine */}
-        <div
-          className="grid"
-          style={{
-            gridTemplateColumns: "80px repeat(7, minmax(0, 1fr))",
-          }}
-        >
-          <div className="h-16 border-b border-r bg-gray-50" />
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-x-auto">
+        {/* Largeur minimale du calendrier */}
+        <div className="min-w-[700px]">
+          {/* En-tête des jours */}
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: `64px repeat(${jours.length}, minmax(0, 1fr))`,
+            }}
+          >
+            {/* Case vide au-dessus des heures */}
+            <div className="h-12 border-b border-r border-gray-200 bg-[#CCCCFF]" />
 
-          {jours.map((jour) => (
-            <div
-              key={jour.toISOString()}
-              className="flex h-16 flex-col items-center justify-center border-b border-r"
-            >
-              <span className="text-sm text-gray-500">
-                {jour.toLocaleDateString("fr-FR", {
-                  weekday: "short",
-                })}
-              </span>
+            {jours.map((jour) => {
+              // Vérifier si le jour correspond à aujourd'hui
+              const estAujourdhui =
+                jour.toDateString() === aujourdhui;
 
-              <span className="text-lg font-semibold text-gray-800">
-                {jour.getDate()}
-              </span>
-            </div>
-          ))}
-        </div>
+              return (
+                <div
+                  key={jour.toDateString()}
+                  className="flex h-12 flex-col items-center justify-center border-b border-r border-gray-200 bg-[#CCCCFF] px-1 last:border-r-0"
+                >
+                  <span className="text-xs font-semibold uppercase tracking-wide text-[#527D75]">
+                    {jour.toLocaleDateString("fr-FR", {
+                      weekday: "short",
+                    })}
+                  </span>
 
-        {/* Deuxième partie : heures à gauche, réservations à droite */}
-        <div
-          className="grid"
-          style={{
-            gridTemplateColumns: "80px repeat(7, minmax(0, 1fr))",
-          }}
-        >
-          {/* Colonne des heures */}
-          <div className="border-r bg-gray-50">
-            {heures.map((heure) => (
-              <div
-                key={heure}
-                className="relative border-b border-gray-200"
-                style={{ height: `${hauteurHeure}px` }}
-              >
-                <span className="absolute right-2 top-0 -translate-y-1/2 text-xs text-gray-500">
-                  {String(heure).padStart(2, "0")}:00
-                </span>
-              </div>
-            ))}
-
-            <div className="relative h-0">
-              <span className="absolute right-2 top-0 -translate-y-1/2 text-xs text-gray-500">
-                18:00
-              </span>
-            </div>
+                  <span
+                    className={`mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm ${
+                      estAujourdhui
+                        ? "bg-[#83AEA7] font-bold text-white"
+                        : "font-semibold text-gray-800"
+                    }`}
+                  >
+                    {jour.getDate()}
+                  </span>
+                </div>
+              );
+            })}
           </div>
 
-          {/* Une colonne par jour */}
-          {jours.map((jour) => (
-            <CalendarDay
-              key={jour.toISOString()}
-              jour={jour}
-              reservations={reservations}
-              salles={salles}
-              heures={heures}
-              hauteurHeure={hauteurHeure}
-            />
-          ))}
+          {/* Corps du calendrier */}
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: `64px repeat(${jours.length}, minmax(0, 1fr))`,
+            }}
+          >
+            {/* Heures à gauche */}
+            <div className="border-r border-gray-200 bg-gray-50">
+              {heures.map((heure) => (
+                <div
+                  key={heure}
+                  className="relative border-b border-gray-200/80"
+                  style={{ height: `${hauteurHeure}px` }}
+                >
+                  <span className="absolute right-1 top-0 -translate-y-1/2 bg-gray-50 px-0.5 text-[10px] text-gray-500 sm:right-2 sm:text-xs">
+                    {String(heure).padStart(2, "0")}:00
+                  </span>
+                </div>
+              ))}
+
+              {/* Dernière heure */}
+              <div className="relative h-0">
+                <span className="absolute right-1 top-0 -translate-y-1/2 bg-gray-50 px-0.5 text-[10px] text-gray-500 sm:right-2 sm:text-xs">
+                  {String(heures[heures.length - 1] + 1).padStart(2, "0")}:00
+                </span>
+              </div>
+            </div>
+
+            {/* Une colonne pour chaque jour */}
+            {jours.map((jour) => (
+              <CalendarDay
+                key={jour.toDateString()}
+                jour={jour}
+                reservations={reservations}
+                salles={salles}
+                heures={heures}
+                hauteurHeure={hauteurHeure}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

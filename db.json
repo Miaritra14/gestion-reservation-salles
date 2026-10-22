@@ -27,32 +27,6 @@
   ],
   "reservations": [
     {
-      "id": "1",
-      "salleId": 1,
-      "nomUtilisateur": "tendry",
-      "date": "2026-10-06",
-      "heureDebut": "09:00",
-      "heureFin": "10:00"
-    },
-    {
-      "id": "2",
-      "salleId": 2,
-      "nomUtilisateur": "Jean",
-      "date": "2026-10-20",
-      "heureDebut": "14:00",
-      "heureFin": "15:00"
-    },
-    {
-      "salleId": "1",
-      "nomUtilisateur": "Administrateur",
-      "date": "2026-10-20",
-      "heureDebut": "08:00",
-      "heureFin": "17:00",
-      "nombrePersonnes": 2,
-      "statut": "Acceptée",
-      "id": "LdHCCNGknaU"
-    },
-    {
       "salleId": "1",
       "nomUtilisateur": "Tendry",
       "date": "2026-10-23",
@@ -61,26 +35,6 @@
       "nombrePersonnes": 18,
       "statut": "Acceptée",
       "id": "5gLmEamOfmg"
-    },
-    {
-      "salleId": "1",
-      "nomUtilisateur": "Tendry",
-      "date": "2026-10-21",
-      "heureDebut": "08:00",
-      "heureFin": "10:00",
-      "nombrePersonnes": 20,
-      "statut": "Refusée",
-      "id": "NK-P7EmUAMI"
-    },
-    {
-      "salleId": "2",
-      "nomUtilisateur": "Administrateur",
-      "date": "2026-10-22",
-      "heureDebut": "09:30",
-      "heureFin": "12:00",
-      "nombrePersonnes": 20,
-      "statut": "En attente",
-      "id": "LwG7mZL1KMY"
     },
     {
       "salleId": "O1u6YRXJw7w",

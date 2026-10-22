@@ -2,35 +2,30 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 
-// Informations d'une salle
-interface Salle {
-  id: string | number;
-  nom: string;
-}
+import CalendarHeader from "../components/calendrier/CalendarHeader";
+import CalendarGrid from "../components/calendrier/CalendarGrid";
+import type { Reservation, Salle } from "../types";
 
-// Informations d'une réservation
-interface Reservation {
-  id: string | number;
-  salleId: string | number;
-  nomUtilisateur: string;
-  date: string;
-  heureDebut: string;
-  heureFin: string;
-  statut: "En attente" | "Acceptée" | "Refusée" | "Annulée";
-}
+// Les différentes vues disponibles du calendrier.
+type VueCalendrier = "jour" | "semaine" | "mois" | "annee";
 
+// Configuration des horaires du calendrier.
 const API_BASE = import.meta.env.VITE_API_URL;
-
 const API_RESERVATIONS = `${API_BASE}/reservations`;
 const API_SALLES = `${API_BASE}/salles`;
 
-// Heures affichées dans l'agenda : de 08 h à 17 h
-const HEURES = Array.from({ length: 10 }, (_, index) => index + 8);
-
-// Hauteur d'une heure dans la grille
+const HEURE_DEBUT = 8;
+const HEURE_FIN = 18;
 const HAUTEUR_HEURE = 56;
+const NB_HEURES = HEURE_FIN - HEURE_DEBUT;
 
-// Transformer une date en AAAA-MM-JJ
+// Préparer les heures de 08 h à 17 h.
+const heures = Array.from(
+  { length: NB_HEURES },
+  (_, index) => HEURE_DEBUT + index
+);
+
+// Transformer une date en format AAAA-MM-JJ.
 function formaterDateISO(date: Date): string {
   const annee = date.getFullYear();
   const mois = String(date.getMonth() + 1).padStart(2, "0");
@@ -39,42 +34,45 @@ function formaterDateISO(date: Date): string {
   return `${annee}-${mois}-${jour}`;
 }
 
-// Trouver le lundi de la semaine
+// Trouver le lundi de la semaine sélectionnée.
 function obtenirDebutSemaine(date: Date): Date {
   const lundi = new Date(date);
-  const jourSemaine = lundi.getDay();
+  const jour = lundi.getDay();
 
-  // Dimanche = 0, lundi = 1
-  const decalage = jourSemaine === 0 ? -6 : 1 - jourSemaine;
-
-  lundi.setDate(lundi.getDate() + decalage);
+  lundi.setDate(lundi.getDate() + (jour === 0 ? -6 : 1 - jour));
   lundi.setHours(0, 0, 0, 0);
 
   return lundi;
 }
 
-// Convertir "09:30" en minutes
-function convertirHeureEnMinutes(heure: string): number {
-  const [heures, minutes] = heure.split(":").map(Number);
-  return heures * 60 + minutes;
+// Ajouter ou retirer des jours à une date.
+function ajouterJours(date: Date, nombre: number): Date {
+  const resultat = new Date(date);
+  resultat.setDate(resultat.getDate() + nombre);
+
+  return resultat;
 }
 
 function CalendrierAdmin() {
-  // Date utilisée pour afficher la semaine
+  // États du calendrier.
   const [date, setDate] = useState(new Date());
+  const [vue, setVue] = useState<VueCalendrier>("semaine");
+  const [recherche, setRecherche] = useState("");
+  const [rechercheActive, setRechercheActive] = useState("");
 
-  // Données récupérées depuis JSON Server
+  // Données récupérées depuis JSON Server.
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [salles, setSalles] = useState<Salle[]>([]);
 
-  // Gestion du chargement et des erreurs
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState("");
 
-  // Charger les salles et les réservations
+  // Charger les salles et les réservations.
   useEffect(() => {
     async function chargerDonnees() {
       try {
+        setErreur("");
+
         const [repReservations, repSalles] = await Promise.all([
           axios.get<Reservation[]>(API_RESERVATIONS),
           axios.get<Salle[]>(API_SALLES),
@@ -83,7 +81,9 @@ function CalendrierAdmin() {
         setReservations(repReservations.data);
         setSalles(repSalles.data);
       } catch {
-        setErreur("Impossible de charger les données. Vérifiez JSON Server.");
+        setErreur(
+          "Impossible de charger les réservations et les salles."
+        );
       } finally {
         setChargement(false);
       }
@@ -92,291 +92,361 @@ function CalendrierAdmin() {
     chargerDonnees();
   }, []);
 
-  // Calculer les sept jours de la semaine affichée
-  const debutSemaine = obtenirDebutSemaine(date);
+  // Filtrer les réservations selon la recherche.
+  // Les réservations refusées ou annulées sont masquées.
+  const reservationsFiltrees = reservations.filter((reservation) => {
+    if (
+      reservation.statut === "Refusée" ||
+      reservation.statut === "Annulée"
+    ) {
+      return false;
+    }
 
-  const jours = Array.from({ length: 7 }, (_, index) => {
-    const jour = new Date(debutSemaine);
-    jour.setDate(debutSemaine.getDate() + index);
-    return jour;
+    const salle = salles.find(
+      (element) => String(element.id) === String(reservation.salleId)
+    );
+
+    const texte = [
+      salle?.nom ?? "Salle inconnue",
+      reservation.nomUtilisateur,
+      reservation.statut,
+    ]
+      .join(" ")
+      .toLocaleLowerCase("fr");
+
+    return texte.includes(
+      rechercheActive.trim().toLocaleLowerCase("fr")
+    );
   });
 
-  // Préparer le titre de la semaine
-  const debut = jours[0];
-  const fin = jours[6];
+  // Calculer les sept jours de la semaine sélectionnée.
+  const debutSemaine = obtenirDebutSemaine(date);
 
-  const memeMois =
-    debut.getMonth() === fin.getMonth() &&
-    debut.getFullYear() === fin.getFullYear();
-
-  const plageSemaine = memeMois
-    ? `${debut.getDate()} – ${fin.getDate()} ${fin.toLocaleDateString(
-        "fr-FR",
-        { month: "long", year: "numeric" }
-      )}`
-    : `${debut.toLocaleDateString("fr-FR", {
-        day: "numeric",
-        month: "short",
-      })} – ${fin.toLocaleDateString("fr-FR", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })}`;
-
-  // Afficher uniquement les demandes actives
-  const reservationsActives = reservations.filter(
-    (reservation) =>
-      reservation.statut !== "Refusée" &&
-      reservation.statut !== "Annulée"
+  const joursSemaine = Array.from({ length: 7 }, (_, index) =>
+    ajouterJours(debutSemaine, index)
   );
 
-  // Changer de semaine
-  function changerSemaine(nombreJours: number) {
+  // Préparer le titre selon la vue sélectionnée.
+  const titre =
+    vue === "jour"
+      ? date.toLocaleDateString("fr-FR", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+      : vue === "semaine"
+        ? `${joursSemaine[0].toLocaleDateString("fr-FR", {
+            day: "numeric",
+            month: "short",
+          })} – ${joursSemaine[6].toLocaleDateString("fr-FR", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}`
+        : vue === "mois"
+          ? date.toLocaleDateString("fr-FR", {
+              month: "long",
+              year: "numeric",
+            })
+          : String(date.getFullYear());
+
+  // Naviguer selon la vue choisie.
+  function naviguer(sens: -1 | 1) {
     setDate((ancienneDate) => {
       const nouvelleDate = new Date(ancienneDate);
-      nouvelleDate.setDate(nouvelleDate.getDate() + nombreJours);
+
+      if (vue === "jour") {
+        nouvelleDate.setDate(nouvelleDate.getDate() + sens);
+      } else if (vue === "semaine") {
+        nouvelleDate.setDate(nouvelleDate.getDate() + sens * 7);
+      } else if (vue === "mois") {
+        nouvelleDate.setDate(1);
+        nouvelleDate.setMonth(nouvelleDate.getMonth() + sens);
+      } else {
+        nouvelleDate.setFullYear(
+          nouvelleDate.getFullYear() + sens
+        );
+      }
+
       return nouvelleDate;
     });
   }
 
-  // Couleur selon le statut
+  // Choisir la couleur selon le statut.
   function obtenirCouleur(statut: Reservation["statut"]) {
-    if (statut === "Acceptée") {
-      return "border-[#83AEA7] bg-[#E8F0EE] text-[#527D75]";
-    }
-
-    return "border-amber-400 bg-amber-50 text-amber-800";
+    return statut === "Acceptée"
+      ? "border-[#83AEA7] bg-[#E8F0EE] text-[#426F67]"
+      : "border-amber-400 bg-amber-50 text-amber-800";
   }
 
+  // Trouver le nom de la salle d'une réservation.
+  function obtenirSalle(reservation: Reservation) {
+    return (
+      salles.find(
+        (salle) => String(salle.id) === String(reservation.salleId)
+      )?.nom ?? "Salle inconnue"
+    );
+  }
+
+  // Préparer les dates de la vue mensuelle.
+  const premierJourMois = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    1
+  );
+
+  // La semaine commence le lundi.
+  const decalageMois =
+    premierJourMois.getDay() === 0
+      ? 6
+      : premierJourMois.getDay() - 1;
+
+  // Construire les cases du calendrier mensuel.
+  const joursMois = Array.from(
+    {
+      length:
+        Math.ceil(
+          (
+            decalageMois +
+            new Date(
+              date.getFullYear(),
+              date.getMonth() + 1,
+              0
+            ).getDate()
+          ) / 7
+        ) * 7,
+    },
+    (_, index) =>
+      ajouterJours(premierJourMois, index - decalageMois)
+  );
+
+  // Afficher les douze mois de l'année.
+  function afficherAnnee() {
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {Array.from({ length: 12 }, (_, index) => {
+          const mois = new Date(date.getFullYear(), index, 1);
+
+          const nombreReservations = reservationsFiltrees.filter(
+            (reservation) => {
+              const dateReservation = new Date(
+                `${reservation.date}T12:00:00`
+              );
+
+              return (
+                dateReservation.getFullYear() === date.getFullYear() &&
+                dateReservation.getMonth() === index
+              );
+            }
+          ).length;
+
+          return (
+            <button
+              type="button"
+              key={index}
+              onClick={() => {
+                setDate(mois);
+                setVue("mois");
+              }}
+              className="rounded-xl border border-gray-200 bg-white p-5 text-left transition hover:border-[#CCCCFF] hover:shadow-sm"
+            >
+              <p className="font-semibold capitalize text-gray-800">
+                {mois.toLocaleDateString("fr-FR", {
+                  month: "long",
+                })}
+              </p>
+
+              <p className="mt-2 text-sm text-gray-500">
+                {nombreReservations} réservation(s)
+              </p>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Afficher le calendrier mensuel.
+  
+function afficherMois() {
+  const aujourdhui = formaterDateISO(new Date());
+
   return (
-    <div className="min-h-screen bg-[#F1F5F4] p-3 sm:p-5">
-      <div className="mx-auto max-w-7xl space-y-4">
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-x-auto">
+        <div className="grid min-w-[700px] grid-cols-7">
+          {/* En-tête des jours */}
+          {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(
+            (nom) => (
+              <div
+                key={nom}
+                className="border-b border-r border-gray-200 bg-[#CCCCFF] px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[#527D75] last:border-r-0"
+              >
+                {nom}
+              </div>
+            )
+          )}
 
-        {/* Titre */}
-        <div>
-          <h1 className="text-xl font-semibold text-gray-800">
-            Agenda des réservations
-          </h1>
+          {/* Cases des jours du mois */}
+          {joursMois.map((jour) => {
+            const dateJour = formaterDateISO(jour);
 
-          <p className="mt-1 text-sm text-gray-500">
-            Consultez les réservations par jour et par horaire.
-          </p>
+            const elements = reservationsFiltrees.filter(
+              (reservation) => reservation.date === dateJour
+            );
+
+            const dansMois = jour.getMonth() === date.getMonth();
+            const estAujourdhui = dateJour === aujourdhui;
+
+            return (
+              <button
+                type="button"
+                key={dateJour}
+                onClick={() => {
+                  setDate(jour);
+                  setVue("jour");
+                }}
+                aria-label={`${jour.toLocaleDateString("fr-FR")}, ${elements.length} réservation(s)`}
+                className={`group min-h-28 border-b border-r border-gray-200 p-2 text-left transition-colors hover:bg-[#F5F9F7] sm:min-h-32 sm:p-3 ${
+                  dansMois ? "bg-white" : "bg-gray-50"
+                }`}
+              >
+                {/* Numéro du jour et compteur */}
+                <div className="mb-3 flex items-center justify-between gap-1">
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm ${
+                      estAujourdhui
+                        ? "bg-[#83AEA7] font-bold text-white"
+                        : dansMois
+                          ? "font-medium text-gray-700 group-hover:bg-[#E8F0EE]"
+                          : "text-gray-400"
+                    }`}
+                  >
+                    {jour.getDate()}
+                  </span>
+
+                  {elements.length > 0 && (
+                    <span className="rounded-full bg-[#E8F0EE] px-2 py-0.5 text-xs font-medium text-[#527D75]">
+                      {elements.length}
+                    </span>
+                  )}
+                </div>
+
+                {/* Liste des réservations */}
+                <div className="space-y-1.5">
+                  {elements.slice(0, 2).map((reservation) => (
+                    <div
+                      key={reservation.id}
+                      title={`${reservation.heureDebut} - ${reservation.heureFin} | ${obtenirSalle(reservation)}`}
+                      className={`overflow-hidden rounded-md border-l-[3px] px-1.5 py-1.5 text-[10px] leading-4 sm:text-xs ${obtenirCouleur(
+                        reservation.statut
+                      )}`}
+                    >
+                      <p className="truncate font-semibold">
+                        {reservation.heureDebut}{" "}
+                        {obtenirSalle(reservation)}
+                      </p>
+                    </div>
+                  ))}
+
+                  {/* Indiquer les réservations supplémentaires */}
+                  {elements.length > 2 && (
+                    <p className="px-1 pt-0.5 text-[10px] font-semibold text-[#527D75] sm:text-xs">
+                      +{elements.length - 2} autre(s)
+                    </p>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+  return (
+    <main className="min-h-screen bg-[#F1F5F4] p-3 sm:p-5">
+      <div className="mx-auto max-w-7xl space-y-5">
+
+        {/* En-tête : titre, navigation, vues et recherche */}
+        <CalendarHeader
+          titreSemaine={titre}
+          vue={vue}
+          recherche={recherche}
+          onChangerVue={setVue}
+          onChangerRecherche={setRecherche}
+          onRechercher={() => setRechercheActive(recherche)}
+          onPrecedent={() => naviguer(-1)}
+          onSuivant={() => naviguer(1)}
+          onAujourdhui={() => setDate(new Date())}
+        />
+
+        {/* Légende des couleurs */}
+        <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+          <span className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-sm border border-amber-400 bg-amber-50" />
+            En attente
+          </span>
+
+          <span className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-sm border border-[#83AEA7] bg-[#E8F0EE]" />
+            Acceptée
+          </span>
         </div>
 
-        {/* Navigation de la semaine */}
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-3">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setDate(new Date())}
-              className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Aujourd'hui
-            </button>
-
-            <button
-              type="button"
-              onClick={() => changerSemaine(-7)}
-              aria-label="Semaine précédente"
-              className="rounded border border-gray-300 px-3 py-2 text-gray-700 hover:bg-gray-50"
-            >
-              ←
-            </button>
-
-            <button
-              type="button"
-              onClick={() => changerSemaine(7)}
-              aria-label="Semaine suivante"
-              className="rounded border border-gray-300 px-3 py-2 text-gray-700 hover:bg-gray-50"
-            >
-              →
-            </button>
-          </div>
-
-          <h2 className="text-base font-semibold text-gray-800">
-            {plageSemaine}
-          </h2>
-        </div>
-
-        {/* Erreur de chargement */}
+        {/* Message d'erreur */}
         {erreur && (
-          <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             {erreur}
           </p>
         )}
 
-        {/* Légende des statuts */}
-        <div className="flex flex-wrap gap-4 text-xs text-gray-600">
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-sm border border-amber-400 bg-amber-50" />
-            En attente
-          </div>
+        {/* Affichage du calendrier */}
+        {chargement ? (
+          <p className="rounded-lg bg-white p-6 text-center text-gray-500">
+            Chargement du calendrier...
+          </p>
+        ) : (
+          <>
+            {/* Vue par jour */}
+            {vue === "jour" && (
+              <CalendarGrid
+                jours={[date]}
+                reservations={reservationsFiltrees}
+                salles={salles}
+                heures={heures}
+                hauteurHeure={HAUTEUR_HEURE}
+              />
+            )}
 
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-sm border border-[#83AEA7] bg-[#E8F0EE]" />
-            Acceptée
-          </div>
-        </div>
+            {/* Vue par semaine */}
+            {vue === "semaine" && (
+              <CalendarGrid
+                jours={joursSemaine}
+                reservations={reservationsFiltrees}
+                salles={salles}
+                heures={heures}
+                hauteurHeure={HAUTEUR_HEURE}
+              />
+            )}
 
-        {/* Agenda hebdomadaire */}
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-          {chargement ? (
-            <p className="p-6 text-center text-sm text-gray-500">
-              Chargement de l'agenda...
+            {/* Vue par mois */}
+            {vue === "mois" && afficherMois()}
+
+            {/* Vue par année */}
+            {vue === "annee" && afficherAnnee()}
+
+            <p className="text-xs text-gray-500">
+              Les réservations refusées ou annulées ne sont pas affichées.
+              La recherche porte sur le nom de la salle, l'utilisateur et le statut.
             </p>
-          ) : (
-            <div className="min-w-[850px]">
-
-              {/* En-tête des jours */}
-              <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] border-b border-gray-200">
-                <div className="border-r border-gray-200 p-2" />
-
-                {jours.map((jour) => {
-                  const aujourdHui =
-                    formaterDateISO(jour) === formaterDateISO(new Date());
-
-                  return (
-                    <div
-                      key={formaterDateISO(jour)}
-                      className={`border-r border-gray-100 px-1 py-3 text-center ${
-                        aujourdHui ? "bg-[#F1F5F4]" : ""
-                      }`}
-                    >
-                      <p className="text-xs capitalize text-gray-500">
-                        {jour.toLocaleDateString("fr-FR", {
-                          weekday: "short",
-                        }).replace(".", "")}
-                      </p>
-
-                      <p
-                        className={`mx-auto mt-1 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
-                          aujourdHui
-                            ? "bg-[#83AEA7] text-white"
-                            : "text-gray-800"
-                        }`}
-                      >
-                        {jour.getDate()}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Lignes horaires */}
-              {HEURES.map((heure) => (
-                <div
-                  key={heure}
-                  className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))]"
-                >
-                  {/* Heure à gauche */}
-                  <div className="h-14 border-r border-b border-gray-200 px-2 pt-1 text-xs text-gray-500">
-                    {String(heure).padStart(2, "0")}:00
-                  </div>
-
-                  {/* Une case par jour */}
-                  {jours.map((jour) => {
-                    const dateJour = formaterDateISO(jour);
-
-                    // Réservations qui commencent pendant cette heure
-                    const reservationsHeure = reservationsActives.filter(
-                      (reservation) => {
-                        if (reservation.date !== dateJour) {
-                          return false;
-                        }
-
-                        const debutMinutes = convertirHeureEnMinutes(
-                          reservation.heureDebut
-                        );
-
-                        return Math.floor(debutMinutes / 60) === heure;
-                      }
-                    );
-
-                    return (
-                      <div
-                        key={dateJour}
-                        className="relative h-14 border-r border-b border-gray-100"
-                      >
-                        {reservationsHeure.map((reservation) => {
-                          const salle = salles.find(
-                            (element) =>
-                              String(element.id) ===
-                              String(reservation.salleId)
-                          );
-
-                          const debutMinutes = convertirHeureEnMinutes(
-                            reservation.heureDebut
-                          );
-
-                          const finMinutes = convertirHeureEnMinutes(
-                            reservation.heureFin
-                          );
-
-                          // Position verticale dans la case horaire
-                          const decalage =
-                            (debutMinutes % 60) * HAUTEUR_HEURE / 60;
-
-                          // Hauteur selon la durée de la réservation
-                          const dureeVisible = Math.max(
-                            15,
-                            Math.min(finMinutes, 18 * 60) - debutMinutes
-                          );
-
-                          const hauteur =
-                            dureeVisible * HAUTEUR_HEURE / 60 - 3;
-
-                          return (
-                            <div
-                              key={reservation.id}
-                              title={`${salle?.nom ?? "Salle inconnue"} : ${reservation.heureDebut} - ${reservation.heureFin} | ${reservation.nomUtilisateur} | ${reservation.statut}`}
-                              className={`absolute left-0.5 right-0.5 z-10 overflow-hidden rounded border-l-[3px] p-1 text-[10px] leading-tight sm:text-xs ${obtenirCouleur(reservation.statut)}`}
-                              style={{
-                                top: `${decalage}px`,
-                                height: `${Math.max(hauteur, 22)}px`,
-                              }}
-                            >
-                              <p className="truncate font-semibold">
-                                {salle?.nom ?? "Salle inconnue"}
-                              </p>
-
-                              <p className="truncate">
-                                {reservation.heureDebut}–{reservation.heureFin}
-                              </p>
-
-                              <p className="truncate">
-                                {reservation.statut}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-
-              {/* Heure de fermeture */}
-              <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))]">
-                <div className="px-2 pt-1 text-xs text-gray-500">
-                  18:00
-                </div>
-                {jours.map((jour) => (
-                  <div
-                    key={formaterDateISO(jour)}
-                    className="h-6 border-r border-gray-100"
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <p className="text-xs text-gray-500">
-          Les demandes en attente et les réservations acceptées sont affichées.
-          Les demandes refusées ou annulées ne sont pas affichées.
-        </p>
+          </>
+        )}
       </div>
-    </div>
+    </main>
   );
 }
 

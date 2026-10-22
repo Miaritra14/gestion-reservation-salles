@@ -17,37 +17,26 @@ function CalendarDay({
   heures,
   hauteurHeure,
 }: CalendarDayProps) {
-  // Transforme la date en format YYYY-MM-DD.
+  // Transformer la date en format YYYY-MM-DD.
   const dateISO = [
     jour.getFullYear(),
     String(jour.getMonth() + 1).padStart(2, "0"),
     String(jour.getDate()).padStart(2, "0"),
   ].join("-");
 
-  // Garde uniquement les réservations de cette journée.
+  // Garder uniquement les réservations de cette journée.
   const reservationsDuJour = reservations.filter(
     (reservation) => reservation.date === dateISO
   );
 
   return (
     <div className="min-w-0 border-r border-gray-200">
-      {/* Nom et numéro du jour */}
-      <div className="sticky top-0 z-20 h-16 border-b bg-white p-2 text-center">
-        <p className="text-xs text-gray-500">
-          {jour.toLocaleDateString("fr-FR", { weekday: "short" })}
-        </p>
-
-        <p className="font-semibold text-gray-800">
-          {jour.getDate()}
-        </p>
-      </div>
-
-      {/* Zone qui contient les heures et les réservations */}
+      {/* Zone des heures et des réservations */}
       <div
         className="relative"
         style={{ height: `${heures.length * hauteurHeure}px` }}
       >
-        {/* Lignes horaires */}
+        {/* Afficher les lignes horaires */}
         {heures.map((heure) => (
           <div
             key={heure}
@@ -59,36 +48,46 @@ function CalendarDay({
           />
         ))}
 
-        {/* Blocs des réservations */}
+        {/* Afficher les réservations à leur bon horaire */}
         {reservationsDuJour.map((reservation) => {
-          const debut =
-            Number(reservation.heureDebut.split(":")[0]) * 60 +
-            Number(reservation.heureDebut.split(":")[1]);
+          const [heureDebut, minuteDebut] =
+            reservation.heureDebut.split(":").map(Number);
 
-          const fin =
-            Number(reservation.heureFin.split(":")[0]) * 60 +
-            Number(reservation.heureFin.split(":")[1]);
+          const [heureFin, minuteFin] =
+            reservation.heureFin.split(":").map(Number);
+
+          const debut = heureDebut * 60 + minuteDebut;
+          const fin = heureFin * 60 + minuteFin;
 
           const debutJournee = heures[0] * 60;
-          const finJournee = (heures[heures.length - 1] + 1) * 60;
+          const finJournee =
+            (heures[heures.length - 1] + 1) * 60;
 
-          // Ignore les réservations hors de la plage affichée.
-          if (debut >= finJournee || fin <= debutJournee || fin <= debut) {
+          // Ignorer les réservations hors de la plage affichée.
+          if (
+            debut >= finJournee ||
+            fin <= debutJournee ||
+            fin <= debut
+          ) {
             return null;
           }
 
-          // Calcule la position et la hauteur du bloc.
+          // Calculer la position verticale et la hauteur du bloc.
           const positionHaut =
-            (Math.max(debut, debutJournee) - debutJournee) / 60 *
+            ((Math.max(debut, debutJournee) - debutJournee) /
+              60) *
             hauteurHeure;
 
           const hauteur =
-            (Math.min(fin, finJournee) - Math.max(debut, debutJournee)) /
-            60 *
+            ((Math.min(fin, finJournee) -
+              Math.max(debut, debutJournee)) /
+              60) *
             hauteurHeure;
 
+          // Trouver le nom de la salle.
           const salle = salles.find(
-            (item) => String(item.id) === String(reservation.salleId)
+            (item) =>
+              String(item.id) === String(reservation.salleId)
           );
 
           return (
